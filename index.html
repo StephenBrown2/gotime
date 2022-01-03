@@ -1,0 +1,157 @@
+<head>
+	<title>It's Go time</title>
+	<link href='https:/fonts.googleapis.com/css%3Ffamily=Roboto:400,700.css' rel='stylesheet' type='text/css'>
+	<script src="./zepto.js"></script>
+	<script src="./gotime.js"></script>
+	<script>
+
+		function insertValue(val) {
+			var formatString = $("#format-string");
+			var caretStart = formatString.get(0).selectionStart;
+			var caretEnd = formatString.get(0).selectionEnd;
+			var oldVal = formatString.val();
+			formatString.val(oldVal.slice(0, caretStart) + val + oldVal.slice(caretEnd));
+			formatString.focus();
+			formatString.get(0).selectionStart = caretStart + val.length;
+			formatString.get(0).selectionEnd = caretStart + val.length;
+			drawParts();
+		}
+
+		function populateDialog() {
+			var formatString = $("#format-string");
+			formatString.val("Mon Jan _2 15:04:05 2006");
+			drawParts();
+			formatString.focus();
+			formatString.on('input', drawParts);
+			$(window).on('resize', drawParts);
+			$.each(fmtParts, function (name, partList) {
+				var list = $('<div class="button-group">');
+				list.append("<h4>" + name + "</h4>");
+				$.each(partList, function (i, part) {
+					var gbtn = $('<div class="group-button">' + part.fmt + '</div>');
+					gbtn.attr("title", part.name);
+					gbtn.click(function () { insertValue(part.fmt); });
+					list.append(gbtn);
+				});
+				$("#button-container").append(list);
+			});
+		}
+
+		var svgns = "http://www.w3.org/2000/svg";
+
+		function clearSvg(node) {
+			while (node.lastChild) {
+				node.removeChild(node.lastChild);
+			}
+		}
+
+		function drawParts() {
+			var x = 20;
+			var explain = $("#explanation").get(0);
+			var tokens = tokenizeFormat($("#format-string").val());
+			var elemGroup = document.createElementNS(svgns, "g");
+			var yfac = 1;
+			var lastUnknown = false;
+
+			clearSvg(explain);
+			explain.appendChild(elemGroup);
+			$.each(tokens, function (i, token) {
+				var tokDraw = document.createElementNS(svgns, "text");
+				tokDraw.setAttribute("font-size", 24);
+				tokDraw.textContent = token.fmt;
+				elemGroup.appendChild(tokDraw);
+				var bbox = tokDraw.getBBox();
+				if (token.name == "Unknown") {
+					if (!lastUnknown) {
+						x += 10;
+					}
+					tokDraw.setAttribute("style", "fill: red; stroke: red;");
+					lastUnknown = true;
+				} else {
+					x += 10;
+					var textYPos = 85 - (bbox.height / 2) - yfac * (bbox.height / 2);
+					drawExplainer(elemGroup, token['short-name'], bbox.width, x, textYPos, yfac);
+					yfac = -1 * yfac;
+					lastUnknown = false;
+				}
+				tokDraw.setAttribute("x", x);
+				tokDraw.setAttribute("y", 80);
+				x += bbox.width;
+			});
+			boundingWidth = explain.getBoundingClientRect().width;
+			var displace = (boundingWidth - x) / 2;
+			elemGroup.setAttribute("transform", "translate(" + displace + ", 0)");
+		}
+
+		function buildSvgShape(points) {
+			var path = "M " + points[0].x + " " + points[0].y
+			for (i = 1; i < points.length; i++) {
+				path = path + " L" + points[i].x + " " + points[i].y
+			}
+			return path + " Z"
+		}
+
+		function drawExplainer(elemGroup, text, width, x, y, invert) {
+			var explainer = document.createElementNS(svgns, "path");
+			var desc = document.createElementNS(svgns, "text");
+			var bracePoints = [
+				{ x: x, y: y },
+				{ x: x, y: y - 7 * invert },
+				{ x: x + (width / 2) - 3, y: y - 7 * invert },
+				{ x: x + width / 2, y: y - 10 * invert },
+				{ x: x + (width / 2) + 3, y: y - 7 * invert },
+				{ x: x + width, y: y - 7 * invert },
+				{ x: x + width, y: y },
+				{ x: x + width - 4, y: y - 4 * invert },
+				{ x: x + 4, y: y - 4 * invert }
+			];
+			explainer.setAttribute("d", buildSvgShape(bracePoints));
+			desc.textContent = text.replace(/ /g, "_");
+			elemGroup.appendChild(explainer);
+			elemGroup.appendChild(desc);
+			var bbox = desc.getBBox();
+			desc.setAttribute("x", x + width / 2);
+			desc.setAttribute("y", y + (bbox.height / 2 - 5) + (bbox.height / 2) * invert - 30 * invert);
+			desc.setAttribute("width", width);
+			desc.setAttribute("text-anchor", "middle");
+		}
+	</script>
+	<link rel="stylesheet" href="./gotime.css" />
+</head>
+
+<body onload="populateDialog()">
+	<div class="header">
+		<h2>It's Go time!</h2>
+		<div class="navigation">
+			<div class="nav-button active">
+				<a href="./index.html#">Builder</a>
+			</div>
+			<div class="nav-button">
+				<a href="./parser.html">Tester</a>
+			</div>
+		</div>
+		<div class="clearall"></div>
+	</div>
+	<div id="help-container">
+		<h3>This site was originally hosted on gotime.agardner.me, but that has sadly gone down.
+			I have pulled the code from web.archive.org and posted it here for my own use.
+			This work is not my own. All credit to agardner.</h3>
+		<p>The boxes contain the various parts of Go date formats. Click on a date format part to add it to the format
+			string. Hover over a part for more information.</p>
+		<p>Add delimiters (spaces, dashes, colons) by typing in the text box. Delimiters and other text that isn't
+			recognized as part of the date will be highlighted in red.</p>
+	</div>
+	<div style="width: 100%;">
+		<svg id="explanation" style="width: 100%; height:130px;"></svg>
+	</div>
+	<input id="format-string" style="width: 601px; margin: auto; display: block;" />
+	<div id="button-container" style="width: 1000px; margin: 20px auto; padding: 0px;">
+	</div>
+</body>
+<!--
+     FILE ARCHIVED ON 01:00:34 Nov 11, 2018 AND RETRIEVED FROM THE
+     INTERNET ARCHIVE ON 20:56:59 Jan 03, 2022.
+
+     ALL OTHER CONTENT MAY ALSO BE PROTECTED BY COPYRIGHT (17 U.S.C.
+     SECTION 108(a)(3)).
+-->
